@@ -118,10 +118,10 @@ let mut solution: Paths<Centi> = Paths::new(vec![]);
 let empty: Paths<Centi> = Paths::new(vec![]);
 
 for g in &subject_groups {
-  //let changed = inflate(g.clone(), 1.0, JoinType::Round, EndType::Polygon, 0.0)
-  //  .simplify(0.5, false);
+  let changed = inflate(g.clone(), -1.0, JoinType::Round, EndType::Polygon, 0.0)
+    .simplify(0.2, false);
 
-  let changed = difference(g.clone(), empty.clone(), FillRule::NonZero);
+  //let changed = difference(g.clone(), empty.clone(), FillRule::NonZero);
 
   for poly in changed.iter() {
     solution.push(poly.clone());
@@ -129,7 +129,12 @@ for g in &subject_groups {
 }
 
 let empty: Paths<Centi> = Paths::new(vec![]);
-let combined = union::<Centi>(solution.clone(), empty, FillRule::NonZero).unwrap();
+let combined = if solution.len() > 1 {
+  let s: Vec<_> = solution.iter().cloned().collect();
+  union::<Centi>(s[1..].to_vec(), vec![s[0].clone()], FillRule::NonZero).unwrap()
+} else {
+  solution.clone()
+};
 
     println!("✓ Union complete: {} polygon(s) in result", solution.len());
 // After the inflate/difference loop, group by original shape
@@ -185,6 +190,6 @@ let output_svg = format!(
         let reduction = 100.0 * (1.0 - output_vertices as f64 / input_vertices as f64);
         println!("  Vertex reduction: {:.1}%", reduction);
     }
-    
+
     Ok(())
 }
