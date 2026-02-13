@@ -65,8 +65,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
    
    for node in tree.root().children() {
-    extract_paths(node, &mut paths);
-  }
+     extract_paths(node, &mut paths);
+   }
     
     println!("\n✓ Extracted {} path(s)", paths.len());
     
@@ -107,7 +107,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             subject_groups.push(subject.clone().into());
         }
         println!("  Path {}: {} polygon(s)", idx + 1, &subject.len());
-        subject = Vec::new();
+        subject = Vec::new()
     }
     println!("\n✓ Created {} path group(s)", &subject_groups.len()); 
     
@@ -117,26 +117,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 let mut solution: Paths<Centi> = Paths::new(vec![]);
 let empty: Paths<Centi> = Paths::new(vec![]);
 
+let  mut combined =  Paths::new(vec![]);
 for g in &subject_groups {
-  let changed = inflate(g.clone(), -1.0, JoinType::Round, EndType::Polygon, 0.0)
-    .simplify(0.2, false);
+  let expanded: Paths<Centi> = inflate(g.clone(), 0.8, JoinType::Round, EndType::Polygon, 0.0)
+    .simplify(0.1, true);
 
-  //let changed = difference(g.clone(), empty.clone(), FillRule::NonZero);
+  combined = if combined.is_empty() {
+    g.clone().into()
+  } else {
+    combined = difference(combined, expanded, FillRule::NonZero)?;
+    union(combined, g.clone(), FillRule::NonZero)?
+  };
 
-  for poly in changed.iter() {
-    solution.push(poly.clone());
-  }
+  combined = filter_small(combined, 5.0);
 }
-
-let empty: Paths<Centi> = Paths::new(vec![]);
-let combined = if solution.len() > 1 {
-  let s: Vec<_> = solution.iter().cloned().collect();
-  union::<Centi>(s[1..].to_vec(), vec![s[0].clone()], FillRule::NonZero).unwrap()
-} else {
-  solution.clone()
-};
-
-    println!("✓ Union complete: {} polygon(s) in result", solution.len());
+println!("✓ Union complete: {} polygon(s) in result", solution.len());
 // After the inflate/difference loop, group by original shape
 // Simpler: combine all resulting polygons into one multi-subpath
 let mut d = String::new();
@@ -192,4 +187,13 @@ let output_svg = format!(
     }
 
     Ok(())
+}
+
+fn filter_small(paths: Paths<Centi>, min_area: f64) -> Paths<Centi> {
+    Paths::new(
+        paths
+            .into_iter()
+            .filter(|p| p.signed_area().abs() >= min_area)
+            .collect(),
+    )
 }
