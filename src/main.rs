@@ -3,19 +3,16 @@ use lyon::path::Path;
 use lyon::path::iterator::PathIterator;
 use clipper2::*;
 
-const TOLERANCE: f32 = 0.25;
+const TOLERANCE: f32 = 0.01;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("SVG Combiner - usvg + lyon + clipper2");
-    println!("======================================\n");
-    
     // Read and parse SVG
     let svg = fs::read("./init.svg")?;
     let opt = usvg::Options::default();
     let tree = usvg::Tree::from_data(&svg, &opt)?;
     
     println!("✓ Parsed SVG with usvg");
-    println!("  Size: {}x{}", tree.size().width(), tree.size().height());
+    println!("  Size: {}px x {}px", tree.size().width(), tree.size().height());
     
     // ---------------- SVG → lyon paths ----------------
     let mut paths = Vec::<Path>::new();
@@ -68,7 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
      extract_paths(node, &mut paths);
    }
     
-    println!("\n✓ Extracted {} path(s)", paths.len());
+    println!("\n✓ Extracted {} path(s) that may have subpaths", paths.len());
     
     // ---------------- Flatten → Clipper polygons ----------------
     // clipper2 0.4 uses Point<P> with a PointScaler type parameter
@@ -120,7 +117,7 @@ let empty: Paths<Centi> = Paths::new(vec![]);
 let  mut combined =  Paths::new(vec![]);
 for g in &subject_groups {
   let expanded: Paths<Centi> = inflate(g.clone(), 0.8, JoinType::Round, EndType::Polygon, 0.0)
-    .simplify(0.1, true);
+    .simplify(0.01, true);
 
   combined = if combined.is_empty() {
     g.clone().into()
@@ -146,9 +143,9 @@ for poly in combined.iter() {
     }
     
     let first = points[0];
-    d.push_str(&format!("M {:.4} {:.4} ", first.x(), first.y()));
+    d.push_str(&format!("M {} {} ", first.x(), first.y()));
     for pt in points.iter().skip(1) {
-        d.push_str(&format!("L {:.4} {:.4} ", pt.x(), pt.y()));
+        d.push_str(&format!("L {} {} ", pt.x(), pt.y()));
     }
     d.push_str("Z ");
 }
@@ -157,8 +154,8 @@ let output_svg = format!(
     r#"<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" 
      viewBox="{} {} {} {}" 
-     width="{}mm" 
-     height="{}mm">
+     width="{}px" 
+     height="{}px">
     <path d="{}" fill="black" fill-rule="nonzero" stroke="none"/>
 </svg>"#,
     0.0, 0.0,
