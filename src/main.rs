@@ -4,7 +4,7 @@ use lyon::path::iterator::PathIterator;
 use clipper2::*;
 use usvg::tiny_skia_path::PathSegment;
 
-const TOLERANCE: f32 = 0.01;
+const TOLERANCE: f32 = 0.25;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Read and parse SVG
@@ -116,8 +116,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let  mut combined =  Paths::new(vec![]);
     for g in &contour_segments_paths {
-      let expanded: Paths<Centi> = inflate(g.clone(), 0.8, JoinType::Round, EndType::Polygon, 0.0)
-        .simplify(0.01, true);
+      let expanded: Paths<Centi> = inflate(g.clone(), 10.0, JoinType::Round, EndType::Polygon, 0.0)
+        .simplify(0.1, true);
 
       combined = if combined.is_empty() {
         g.clone().into()
@@ -126,7 +126,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         union(combined, g.clone(), FillRule::NonZero)?
       };
 
-      combined = filter_small(combined, 5.0);
+      combined = filter_small(combined, 50.0);
     }
 
     let output_polygons = combined.iter().collect::<Vec<_>>().len();
