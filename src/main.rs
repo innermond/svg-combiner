@@ -8,9 +8,10 @@ const TOLERANCE: f32 = 0.1;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Read and parse SVG
-    let svg = fs::read("./init.svg")?;
+    //let svg = fs::read("./init.svg")?;
+    let svg = create_init_svg_file();
     let opt = usvg::Options::default();
-    let tree = usvg::Tree::from_data(&svg, &opt)?;
+    let tree = usvg::Tree::from_data(&(svg.as_bytes()), &opt)?;
     
     println!("✓ Parsed SVG with usvg");
     println!("  Size: {}px x {}px", tree.size().width(), tree.size().height());
@@ -130,7 +131,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     combined = combined.simplify(0.2, true);
     combined = filter_small(combined, 50.0);
     combined = union(combined, Paths::new(vec![]), FillRule::NonZero)?;
-    combined = combined.simplify(0.1, true);
+    combined = combined.simplify(0.4, true);
 
     let output_polygons = combined.iter().collect::<Vec<_>>().len();
     println!("✓ Union complete: {} polygon(s) in result", output_polygons);
@@ -183,7 +184,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         if output_vertices < input_vertices {
             let reduction = 100.0 * (1.0 - output_vertices as f64 / input_vertices as f64);
-            println!("  Vertex reduction: {:.1}%", reduction);
+            println!(" Vertex reduction: {:.1}%", reduction);
         }
 
         Ok(())
@@ -196,4 +197,79 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .filter(|p| p.signed_area().abs() >= min_area)
                 .collect(),
         )
+    }
+
+    fn create_init_svg_file() -> String {
+      let opt = usvg::Options::default();
+      let entries: Vec<(usvg::Tree, f32, f32)> = Vec::new();
+      for i in 0..=5 {
+        let path = format!("{i}.svg");
+        match fs::read(&path) {
+          Ok(data) => match usvg::Tree::from_data(&data, &opt) {
+             Ok(tree) => {
+              let size = tree.size();
+              let (w, h) = (size.width(), size.height());
+              println!("loaded path {path} ({w}px x {h}px)");
+              entries.push((tree, w, h));
+             },
+             Err(e) => eprintln!("skip {path} - parse error {e}"),
+          },
+          Err(e) => eprintln!("skip {path}: {e}"),
+        }
+      }
+      if entries.is_empty() {
+        eprintln!("no SVG files found");
+      }
+
+      let canvas_h = entries.iter().map(|(_, _, h)| *h).fold(0.0_f32, f32::max);
+      let canvas_w = entries.iter().map(|(_, w, _)| *w).sum::<f32>();
+
+      let mut out = Vec::new();
+
+      writeln!(
+        out,
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{canvas_w}" height="{canvas_h}" viewBox="0 0 {canvas_w} {canvas_h}">"#,
+      ).unwrap();
+
+      let mut x = 0.0_f32;
+      let mut y = 0.0_f32;
+      let opt = usvg::Options::default();
+      for (_, (tree, w, h)) in entries.iter().enumerate() {
+        y = canvas_h - h;
+        writeln!(
+          out,
+          r#" <svg x={x} y={y} width={w} height={h} overflow="visible">"#,
+        );
+        x += w/2.0f32;
+
+        let inner_doc = tree.to_string(&opt);
+        if let Some(children) = svg_children(&inner_doc) {
+            out.push_str(children);
+            out.push('\n');
+        }
+      }
+      writeln!(out, "  </svg>").unwrap();
+
+      out.join("\n")
+    }
+
+    /// Return the XML content between the outer `<svg …>` and `</svg>` tags.
+    fn svg_children(doc: &str) -> Option<&str> {
+        // Skip optional XML declaration
+        let body = if doc.starts_with("<?xml") {
+            doc.splitn(2, "?>").nth(1)?.trim_start()
+        } else {
+            doc
+        };
+
+        // Locate the end of the opening <svg …> tag
+        let open_end = body.find('>')?;
+        if body[..open_end].ends_with('/') {
+            return Some(""); // self-closing tag, no children
+        }
+        let after_open = &body[open_end + 1..];
+
+        // Strip the trailing </svg>
+        let close = after_open.rfind("</svg>")?;
+        Some(&after_open[..close])
     }
